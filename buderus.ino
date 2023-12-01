@@ -9,11 +9,11 @@ unsigned long lastMsg = 0;
 SoftwareSerial myUART =  SoftwareSerial(13,15);
 
 // WiFi
-const char *ssid = "myWifi"; // Enter your WiFi name
-const char *password = "password";  // Enter WiFi password
+const char *ssid = "WLANSSID"; // Enter your WiFi name
+const char *password = "wlanpassword";  // Enter WiFi password
 
 // MQTT Topics
-const char *mqtt_broker = "192.168.1.108";
+const char *mqtt_broker = "BrokerIP";
 const char *topicHeizkreis0 = "esp8266/home/Heizkreis0/SENSOR";
 const char *topicHeizkreis1 = "esp8266/home/Heizkreis1/SENSOR";
 const char *topicWarmwasser1 = "esp8266/home/Warmwasser1/SENSOR";
@@ -21,15 +21,16 @@ const char *topicWarmwasser2 = "esp8266/home/Warmwasser2/SENSOR";
 const char *topicWarmwasser3 = "esp8266/home/Warmwasser3/SENSOR";
 const char *topicKessel = "esp8266/home/Kessel/SENSOR";
 const char *topicSolar = "esp8266/home/Solar/SENSOR";
+const char *topicStatus = "esp8266/home/Status/SENSOR";
 
 const char *mqtt_username = "mqttuser";
-const char *mqtt_password = "password";
+const char *mqtt_password = "mqttpasword";
 const int mqtt_port = 1883;
 
-const int mqtt_interval = 2000;
+const int mqtt_interval = 10000;
 
 //Rx Buffer Heizungssteuerung
-const int max_line_length = 26;
+const int max_line_length = 36;
 static char buffer[max_line_length];
 
 //Die Werte der Heizungssteuerung werden in diesen Variablen gehalten, Doublebuffering.
@@ -97,6 +98,8 @@ int SolarKollektorTemp=0;
 int Aussentemperatur=0;
 int GedAussentemperatur=0;
 
+int counterBeginProtokol=0;
+
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -117,13 +120,7 @@ int readline(int readch, char *buffer, int len)
           pos = 0;  // Reset position index ready for next time
           return rpos;
         }
-        case 0x02: // new line
-        if (pos > 1 && buffer[pos-1]== 0xAF)
-        {
-          rpos = pos;
-          pos = 0;  // Reset position index ready for next time
-          return rpos;
-        }
+
 
       default:
         if (pos < len-1) {
@@ -177,7 +174,7 @@ void setup() {
   client.setCallback(callback);
   reconnect();
   // publish and subscribe
-  client.publish(topicHeizkreis0, "Hallo Welt");
+  client.publish(topicStatus, "Start");
   //client.subscribe(topicHeizkreis0);
 }
 
@@ -204,7 +201,9 @@ void loop() {
     if(readline(myUART.read(), buffer, max_line_length) > 0) {
       //ein Zeilenende wurde gefunden und die Werte stehen im Buffer
       //Jetzt die Werte aus dem Buffer in die Variablen
-      if (buffer[0] == 0x80 && buffer[1] == 0){
+
+      if (buffer[0] == 0x80 && buffer[1] == 0){ //Wenn die empfangene Zeile die erste im Protokoll war
+        counterBeginProtokol++;
         if(buffer[2] & 4){Heizkreis0Automatik=1;}else{Heizkreis0Automatik=0;}
         if(buffer[2] & 8){Heizkreis0WarmwasserVorrang=1;}else{Heizkreis0WarmwasserVorrang=0;}
         if(buffer[3] & 1){Heizkreis0Sommer=1;}else{Heizkreis0Sommer=0;}
@@ -270,6 +269,11 @@ void loop() {
         KesselAnlagenvorlaufSoll=buffer[2];
         KesselAnlagenvorlaufIst=buffer[3];
       }
+      //Konfiguration
+      if(buffer[0] == 0x89 && buffer[1] == 0){
+        Aussentemperatur=buffer[2];
+        GedAussentemperatur=buffer[3];
+      }
           //Monitorwerte Kessel
       if(buffer[0] == 0x92 && buffer[1] ==0){
         BrennerSollModulationswert=buffer[2];
@@ -299,11 +303,7 @@ void loop() {
       if(buffer[0] == 0x9E && buffer[1] == 24){
         SolarKollektorTemp=buffer[7];
       }   
-      //Konfiguration
-      if(buffer[0] == 0x89 && buffer[1] == 0){
-        Aussentemperatur=buffer[2];
-        GedAussentemperatur=buffer[3];
-      }
+      
 
       //
       //Jetzt die MQTT Strings zusammenbauen und wegsenden. Spaghetti Start:  
@@ -312,9 +312,11 @@ void loop() {
       //Nicht jeden Durchlauf in MQTT senden um die Datenflut zu reduzieren
       //Alternativ oder zusätzlich könnte man den 8266 auch nach dem Senden in Deepsleep versetzen, siehe unten.
       unsigned long now = millis();
-      if(lastMsg>now){lastMsg=now;} // sicher ist sicher...
-      if (client.connected() && (now - lastMsg > mqtt_interval)){ 
+      //if(lastMsg>now){lastMsg=now;} // sicher ist sicher...
+      //if (client.connected() && (now - lastMsg > mqtt_interval)){
+      if (client.connected() && counterBeginProtokol>2){  //alle Variablen wurden eingelesen
         lastMsg = now;
+        counterBeginProtokol=0;
         String payload = "{\"Heizkreis0Automatik\":";
         payload += Heizkreis0Automatik;
         payload += ",\"Hk0WWVorrang\":";
@@ -494,8 +496,8 @@ void loop() {
         }
         //Den 8266 in Deepsleep versetzen.
         //Brücke vom D0 (GPIO16) zum Reset !
-        delay(500); //erstmal fertig machen lassen...
-        ESP.deepSleep(30e6); // Zeit in µs!
+        delay(1500); //erstmal fertig machen lassen...
+        ESP.deepSleep(40e6); // Sleeptime in µs!
       }
     }
   }
