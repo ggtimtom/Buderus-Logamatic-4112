@@ -7,7 +7,7 @@ Sub-D 15pol.
 Pin 14 = GND
 Pin 5  = RxD
 
-ESP8255
-Bridge from Reset to D0
-D7 ESP = Pin 5 SubD
+ESP8255:
+Wire Bridge from Reset to D0
+D7 ESP to Pin 5 SubD
 
