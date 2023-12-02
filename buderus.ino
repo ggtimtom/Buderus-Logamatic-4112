@@ -9,11 +9,11 @@ unsigned long lastMsg = 0;
 SoftwareSerial myUART =  SoftwareSerial(13,15);
 
 // WiFi
-const char *ssid = "WLANSSID"; // Enter your WiFi name
+const char *ssid = "WLAN SSID"; // Enter your WiFi name
 const char *password = "password";  // Enter WiFi password
 
 // MQTT Topics
-const char *mqtt_broker = "MQTTIP";
+const char *mqtt_broker = "MQTT IP";
 const char *topicHeizkreis0 = "esp8266/home/Heizkreis0/SENSOR";
 const char *topicHeizkreis1 = "esp8266/home/Heizkreis1/SENSOR";
 const char *topicWarmwasser1 = "esp8266/home/Warmwasser1/SENSOR";
@@ -24,7 +24,7 @@ const char *topicSolar = "esp8266/home/Solar/SENSOR";
 const char *topicStatus = "esp8266/home/Status/SENSOR";
 
 const char *mqtt_username = "mqttuser";
-const char *mqtt_password = "password";
+const char *mqtt_password = "Password";
 const int mqtt_port = 1883;
 
 const int mqtt_interval = 10000;
@@ -511,4 +511,3 @@ void loop() {
     ESP.deepSleep(40e6); // Zeit in µs!
   }
 }
-
